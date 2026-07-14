@@ -30,6 +30,7 @@ local flint_bind   = MENU:add_keybind("Flint Key", 0x58)
 
 MENU:add_label("Rapid Fire (some guns)")
 local rf_enable   = MENU:add_checkbox("RF Enabled", false)
+local rf_bind     = MENU:add_keybind("RF Hold", 0x04)
 local rf_interval = MENU:add_slider("Click Interval (ms)", 1, 50, 1)
 
 local hotbar_cache = nil
@@ -337,7 +338,7 @@ spawn(function()
             end
             prev_flint_key = flint_key
 
-            if rf_enable:get_value() and input.key_down(0x01) then
+            if rf_enable:get_value() and rf_bind:get_state() then
                 input.simulate_mouse_down(MOUSE1)
                 rf_holding = true
                 wait(math.floor(rf_interval:get_value()))
