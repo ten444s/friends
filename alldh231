@@ -21,7 +21,7 @@ local gun2_equip     = MENU:add_slider("Equip delay 2 (ms)", 0, 300, 2)
 local cycle_gun3     = MENU:add_combo("Gun 3", GUNS, 5)
 local gun3_equip     = MENU:add_slider("Equip delay 3 (ms)", 0, 300, 2)
 local skip_equipped  = MENU:add_checkbox("Skip Equipped", true)
-local shot_delay     = MENU:add_slider("Shot Delay (ms)", 0, 200, 30)
+local shot_delay     = MENU:add_slider("Shot Delay (ms)", 0, 200, 2)
 local cycle_cooldown = MENU:add_slider("Cooldown (ms)", 0, 1500, 250)
 
 MENU:add_label("Flintlock")
