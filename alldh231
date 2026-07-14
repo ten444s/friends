@@ -312,7 +312,7 @@ local function flint_sequence()
     wait(10)
     input.simulate_press(SLOT_KEYS[knife_slot])
 
-    wait(1200)
+    wait(600)
     flint_busy = false
 end
 
