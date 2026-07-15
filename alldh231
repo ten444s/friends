@@ -7,7 +7,7 @@ local SLOT_KEYS = { 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x30 }
 local PlayersService = game:get_service("Players")
 
 local MENU = gui.create("perpetual", false)
-MENU:set_size(380, 780)
+MENU:set_size(380, 1000)
 
 MENU:add_label("Guns macro with tb")
 local cycle_enable   = MENU:add_checkbox("Guns Macro", true)
@@ -16,14 +16,14 @@ local require_tb_key = MENU:add_checkbox("Compatibility With Triggerbot", true)
 MENU:add_label("must hold 1 of the 3 guns, active when m1")
 local seq_len        = MENU:add_slider("Seq Length (1-3)", 1, 3, 3)
 local cycle_gun1     = MENU:add_combo("Gun 1", GUNS, 6)
-local gun1_equip     = MENU:add_slider("Equip delay 1 (ms)", 0, 300, 18)
+local gun1_equip     = MENU:add_slider("Gun 1 Hold (ms)", 0, 300, 18)
 local cycle_gun2     = MENU:add_combo("Gun 2", GUNS, 0)
-local gun2_equip     = MENU:add_slider("Equip delay 2 (ms)", 0, 300, 2)
+local gun2_equip     = MENU:add_slider("Gun 2 Hold (ms)", 0, 300, 3)
 local cycle_gun3     = MENU:add_combo("Gun 3", GUNS, 5)
-local gun3_equip     = MENU:add_slider("Equip delay 3 (ms)", 0, 300, 2)
+local gun3_equip     = MENU:add_slider("Gun 3 Hold (ms)", 0, 300, 3)
 local skip_equipped  = MENU:add_checkbox("Skip Equipped", true)
-local shot_delay     = MENU:add_slider("Shot Delay (ms)", 0, 200, 30)
-local cycle_cooldown = MENU:add_slider("Cooldown (ms)", 0, 1500, 250)
+local shot_delay     = MENU:add_slider("Shot Delay (ms)", 0, 200, 12)
+local cycle_cooldown = MENU:add_slider("Cooldown (ms)", 0, 1500, 270)
 
 MENU:add_label("Flintlock")
 local flint_enable = MENU:add_checkbox("Flint Enabled", true)
@@ -34,7 +34,11 @@ local flint_step   = MENU:add_slider("Flint Step (ms)", 1, 30, 7.3)
 MENU:add_label("Rapid Fire (some guns)")
 local rf_enable   = MENU:add_checkbox("RF Enabled", false)
 local rf_bind     = MENU:add_keybind("RF Hold", 0x04)
-local rf_interval = MENU:add_slider("Click Interval (ms)", 1, 50, 1)
+local rf_interval = MENU:add_slider("Click Interval (ms)", 0.1, 50, 0.1)
+
+MENU:add_label("Auto Reload")
+local autoreload_enable = MENU:add_checkbox("Auto Reload (0 ammo)", true)
+local ar_include_flint  = MENU:add_checkbox("Include Flintlock", true)
 
 local hotbar_cache = nil
 
@@ -216,12 +220,17 @@ end
 
 local last_ammo_gun = nil
 local last_ammo = nil
+local shot_check = 0
 
 local function shot_watch()
     if cycle_busy or not cycle_enable:get_value() then
         last_ammo_gun = nil
         return
     end
+
+    local now = get_tickcount()
+    if now - shot_check < 30 then return end
+    shot_check = now
 
     if not require_tb_key:get_value() then
         last_ammo_gun = nil
@@ -295,6 +304,37 @@ local flint_busy = false
 local FLINT_GUN = "[Flintlock]"
 local FLINT_CANCEL = "[Knife]"
 
+local flint_empty_notified = false
+
+local function read_flint_ammo()
+    local lp = PlayersService.local_player
+    if not lp:isvalid() then return nil end
+    local char = lp.character
+    if char:isvalid() then
+        local tool = char:find_first_child(FLINT_GUN)
+        if tool:isvalid() then
+            local a = tool:find_first_child("Ammo")
+            if a:isvalid() then return a:get_value_int() end
+        end
+    end
+    local bp = lp:find_first_child("Backpack")
+    if bp:isvalid() then
+        local tool = bp:find_first_child(FLINT_GUN)
+        if tool:isvalid() then
+            local a = tool:find_first_child("Ammo")
+            if a:isvalid() then return a:get_value_int() end
+        end
+    end
+    return nil
+end
+
+local function flint_notify_empty()
+    if not flint_empty_notified then
+        flint_empty_notified = true
+        log.notification("Flintlock is EMPTY - 0 bullets!", "warning")
+    end
+end
+
 local function flint_sequence()
     local gun_slot   = find_gun_slot(FLINT_GUN)
     local knife_slot = find_gun_slot(FLINT_CANCEL)
@@ -309,7 +349,7 @@ local function flint_sequence()
         return
     end
 
-    local step = flint_step:get_value()
+    local step = math.floor(flint_step:get_value())
 
     input.simulate_mouse_down(MOUSE1)
     wait(step)
@@ -322,37 +362,75 @@ local function flint_sequence()
     wait(step)
     input.simulate_press(SLOT_KEYS[knife_slot])
 
-    wait(1200)
+    wait(40)
+    local notified_fast = false
+    if flint_notify:get_value() then
+        local ammo = read_flint_ammo()
+        if ammo ~= nil and ammo <= 0 then
+            flint_notify_empty()
+            notified_fast = true
+        end
+    end
+
+    wait(260)
+    if flint_notify:get_value() and not notified_fast then
+        local ammo = read_flint_ammo()
+        if ammo ~= nil and ammo <= 0 then
+            flint_notify_empty()
+        end
+    end
+
+    wait(900)
     flint_busy = false
 end
 
-local flint_empty_notified = false
+local flint_empty_check = 0
 
 local function flint_empty_watch()
     if not flint_notify:get_value() then
         flint_empty_notified = false
         return
     end
-    local char = get_character()
-    if not char then
-        flint_empty_notified = false
-        return
-    end
-    local tool = char:find_first_child(FLINT_GUN)
-    if not tool:isvalid() then
-        flint_empty_notified = false
-        return
-    end
-    local a = tool:find_first_child("Ammo")
-    if not a:isvalid() then return end
-    local ammo = a:get_value_int()
-    if ammo ~= nil and ammo <= 0 then
-        if not flint_empty_notified then
-            flint_empty_notified = true
-            log.notification("Flintlock is EMPTY - 0 bullets!", "warning")
-        end
+    local now = get_tickcount()
+    if now - flint_empty_check < 300 then return end
+    flint_empty_check = now
+    local ammo = read_flint_ammo()
+    if ammo == nil then return end
+    if ammo <= 0 then
+        flint_notify_empty()
     else
         flint_empty_notified = false
+    end
+end
+
+local ar_last = 0
+local ar_check = 0
+local AR_EXCLUDE = { ["[Money Gun]"] = true, ["[Taser]"] = true }
+
+local function auto_reload_watch()
+    if not autoreload_enable:get_value() then return end
+    if cycle_busy or flint_busy then return end
+    local now = get_tickcount()
+    if now - ar_check < 400 then return end
+    ar_check = now
+    if now - ar_last < 1500 then return end
+    local char = get_character()
+    if not char then return end
+    for _, v in pairs(char:get_children()) do
+        if v:isvalid() and v.class_name == "Tool" then
+            if AR_EXCLUDE[v.name] then return end
+            if v.name ~= FLINT_GUN or ar_include_flint:get_value() then
+                local a = v:find_first_child("Ammo")
+                if a:isvalid() then
+                    local ammo = a:get_value_int()
+                    if ammo ~= nil and ammo <= 0 then
+                        ar_last = now
+                        input.simulate_press(0x52)
+                    end
+                end
+            end
+            return
+        end
     end
 end
 
@@ -365,6 +443,7 @@ spawn(function()
         if can_act() then
             shot_watch()
             flint_empty_watch()
+            auto_reload_watch()
 
             local cycle_key = cycle_manual_bind:get_state()
             if cycle_enable:get_value() and (not require_tb_key:get_value()) and cycle_key and not prev_cycle_key and not cycle_busy then
