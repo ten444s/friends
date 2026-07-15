@@ -6,7 +6,7 @@ local SLOT_KEYS = { 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x30 }
 
 local PlayersService = game:get_service("Players")
 
-local MENU = gui.create("Gun Macros", false)
+local MENU = gui.create("perpetual", false)
 MENU:set_size(380, 780)
 
 MENU:add_label("Guns macro with tb")
@@ -402,4 +402,4 @@ spawn(function()
     end
 end)
 
-log.add("gun macros loaded", color(0, 1, 1, 1))
+log.add("perpetual loaded", color(0, 1, 1, 1))
